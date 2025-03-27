@@ -181,10 +181,20 @@ async def input_chain(dut, bit_list, ff_index):
         
 async def output_chain_single(dut, ff_index):
 
-    ######################
-    # TODO: YOUR CODE HERE 
-    ######################
-
+    dut.scan_en.value = 1
+    
+    cycles_needed = CHAIN_LENGTH - ff_index -1
+    
+    for _ in range(cycles_needed):
+        await step_clock(dut)
+        
+    await step_clock(dut)    
+    bit_value = int(dut.scan_out.value)
+    
+    dut.scan_en.value = 0
+    
+    return bit_value
+    
     pass       
 
 #-----------------------------------------------
