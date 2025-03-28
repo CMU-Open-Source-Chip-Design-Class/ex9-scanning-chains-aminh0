@@ -168,10 +168,17 @@ async def input_chain_single(dut, bit, ff_index):
         
 async def input_chain(dut, bit_list, ff_index):
 
-    ######################
-    # TODO: YOUR CODE HERE 
-    ######################
+    dut.scan_en.value = 1
+    
+    for bit in reversed(bit_list):
+        dut.scan_in.value = bit
+        await step_clock(dut)
 
+    for _ in range(ff_index):
+        dut.scan_in.value = 0
+        await step_clock(dut)
+        
+    dut.scan_en.value = 0
     pass
 
 #-----------------------------------------------
@@ -206,9 +213,23 @@ async def output_chain_single(dut, ff_index):
         
 async def output_chain(dut, ff_index, output_length):
 
-    ######################
-    # TODO: YOUR CODE HERE 
-    ######################
+    result = []
+    
+    dut.scan_en.value = 1
+    
+    cycles_needed = CHAIN_LENGTH - ff_index - output_length
+    
+    for _ in range(cycles_needed):
+        await step_clock(dut)
+        
+    for _ in range(output_length):
+        await step_clock(dut)
+        bit_value = int(dut.scan_out.value)
+        result.append(bit_value)
+        
+    dut.scan_en.value = 0
+    
+    return result
 
     pass       
 
@@ -225,8 +246,75 @@ async def test(dut):
 
     # Setup the scan chain object
     chain = setup_chain(FILE_NAME)
-
-    ######################
-    # TODO: YOUR CODE HERE 
-    ######################
-
+    
+    
+    CHAIN_LENGTH = chain.chain_length
+    
+    dut.scan_en.value = 0
+    dut.scan_in.value = 0
+    dut.clk.value = 0
+    
+    test_cases = [
+        {"a":3, "b":5, "expected": 8}
+        {"a": 7, "b": 9, "expected": 16},
+        {"a": 15, "b": 15, "expected": 30},
+        {"a": 0, "b": 10, "expected": 10}
+    ]
+    
+    for i, test_case in enumerate(test_cases):
+        a_val = test_case["a"]
+        b_val = test_case["b"]
+        expected = test_case["expected"]
+        
+        print(f"\ntest case {i+1}: a_reg = {a_val}, b_reg = {b_val}")
+        
+        # a_reg와 b_reg의 인덱스 정보 가져오기
+        a_reg = chain.registers["a_reg"]
+        b_reg = chain.registers["b_reg"]
+        x_out = chain.registers["x_out"]
+        
+        # a_val과 b_val을 이진수로 변환
+        a_bin = format(a_val, f'0{a_reg.size}b')
+        b_bin = format(b_val, f'0{b_reg.size}b')
+        
+        # 전체 체인에 넣을 비트 리스트 생성
+        bit_list = [0] * CHAIN_LENGTH
+        
+        # x_out 레지스터는 0으로 초기화
+        for i, idx in enumerate(x_out.index_list):
+            bit_list[idx] = 0
+        
+        # a_reg에 값 설정
+        for i, idx in enumerate(a_reg.index_list):
+            bit_list[idx] = int(a_bin[a_reg.size - 1 - i])
+        
+        # b_reg에 값 설정
+        for i, idx in enumerate(b_reg.index_list):
+            bit_list[idx] = int(b_bin[b_reg.size - 1 - i])
+        
+        # 스캔 체인에 전체 비트 리스트 입력
+        await input_chain(dut, bit_list, 0)
+        
+        # 스캔 모드 비활성화하고 클록 틱
+        dut.scan_en.value = 0
+        await step_clock(dut)
+        
+        # x_out 레지스터 값 읽기
+        result_bits = []
+        for idx in x_out.index_list:
+            bit = await output_chain_single(dut, idx)
+            result_bits.append(bit)
+        
+        # 결과 비트를 10진수로 변환
+        result_val = 0
+        for i, bit in enumerate(reversed(result_bits)):
+            result_val += bit * (2 ** i)
+        
+        # 결과 출력 및 검증
+        print(f"Expected: {expected}")
+        print(f"Result_val: {result_val}")
+        
+        if result_val == expected:
+            print("test success!")
+        else:
+            print("test fail!")
